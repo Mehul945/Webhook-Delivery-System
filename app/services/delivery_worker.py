@@ -85,7 +85,7 @@ class DeliveryWorker:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error("delivery_worker_error", error=str(e))
+                logger.error("delivery_worker_error: error=%s", str(e))
                 await asyncio.sleep(self.settings.worker_poll_interval)
 
     async def _process_pending_events(self) -> None:
@@ -134,7 +134,7 @@ class DeliveryWorker:
             return None
 
         except Exception as e:
-            logger.error("claim_event_error", error=str(e))
+            logger.error("claim_event_error: error=%s", str(e))
             return None
 
     async def _deliver_event(self, event: WebhookEvent) -> None:
@@ -143,10 +143,10 @@ class DeliveryWorker:
         event_type = event.event_type or "unknown"
 
         logger.info(
-            "delivery_attempt_start",
-            event_id=event.id,
-            attempt=attempt_number,
-            event_type=event_type,
+            "delivery_attempt_start: event_id=%s, attempt=%d, event_type=%s",
+            event.id,
+            attempt_number,
+            event_type,
         )
 
         RETRY_ATTEMPTS.labels(attempt_number=str(attempt_number)).inc()
@@ -154,8 +154,8 @@ class DeliveryWorker:
         # Check circuit breaker
         if not await circuit_breaker.can_execute():
             logger.warning(
-                "delivery_skipped_circuit_open",
-                event_id=event.id,
+                "delivery_skipped_circuit_open: event_id=%s",
+                event.id,
             )
             # Schedule retry later
             await self._schedule_retry(event, attempt_number)
@@ -186,10 +186,10 @@ class DeliveryWorker:
                 await circuit_breaker.record_success()
                 EVENTS_DELIVERED.labels(event_type=event_type).inc()
                 logger.info(
-                    "delivery_success",
-                    event_id=event.id,
-                    attempt=attempt_number,
-                    duration_ms=duration_ms,
+                    "delivery_success: event_id=%s, attempt=%d, duration_ms=%.2f",
+                    event.id,
+                    attempt_number,
+                    duration_ms,
                 )
             else:
                 attempt.error_message = f"HTTP {response.status_code}"
@@ -219,10 +219,10 @@ class DeliveryWorker:
     ) -> None:
         """Handle a failed delivery attempt."""
         logger.warning(
-            "delivery_failed",
-            event_id=event.id,
-            attempt=attempt_number,
-            error=attempt.error_message,
+            "delivery_failed: event_id=%s, attempt=%d, error=%s",
+            event.id,
+            attempt_number,
+            attempt.error_message,
         )
 
         if attempt_number >= self.settings.max_retry_attempts:
@@ -253,9 +253,9 @@ class DeliveryWorker:
         """Mark event as permanently failed (dead letter)."""
         db = Database.get_db()
         logger.error(
-            "delivery_failed_permanently",
-            event_id=event.id,
-            total_attempts=len(event.delivery_attempts) + 1,
+            "delivery_failed_permanently: event_id=%s, total_attempts=%d",
+            event.id,
+            len(event.delivery_attempts) + 1,
         )
         await db.webhooks.update_one(
             {"_id": ObjectId(event.id)},
@@ -283,10 +283,10 @@ class DeliveryWorker:
         next_retry = datetime.now(timezone.utc) + timedelta(seconds=delay)
 
         logger.info(
-            "delivery_retry_scheduled",
-            event_id=event.id,
-            next_attempt=attempt_number + 1,
-            delay_seconds=delay,
+            "delivery_retry_scheduled: event_id=%s, next_attempt=%d, delay_seconds=%.1f",
+            event.id,
+            attempt_number + 1,
+            delay,
         )
 
         db = Database.get_db()
