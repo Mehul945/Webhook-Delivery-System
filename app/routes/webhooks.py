@@ -28,7 +28,6 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 async def ingest_webhook(
     request: Request,
     x_signature: str = Header(..., alias="X-Signature"),
-    x_idempotency_key: str | None = Header(None, alias="X-Idempotency-Key"),
 ) -> IngestResponse:
     """
     Ingest a webhook event.
@@ -38,7 +37,6 @@ async def ingest_webhook(
 
     Headers:
     - X-Signature: HMAC-SHA256 signature of the request body
-    - X-Idempotency-Key: Optional key to prevent duplicate processing
     """
     # Get raw body for HMAC validation
     body = await request.body()
@@ -56,21 +54,7 @@ async def ingest_webhook(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    # Check idempotency key
     db = Database.get_db()
-    if x_idempotency_key:
-        existing = await db.webhooks.find_one({"idempotency_key": x_idempotency_key})
-        if existing:
-            logger.info(
-                "ingest_idempotent_duplicate: idempotency_key=%s",
-                x_idempotency_key,
-            )
-            return IngestResponse(
-                id=str(existing["_id"]),
-                status=WebhookStatus(existing["status"]),
-                received_at=existing["received_at"],
-                message="Duplicate event (idempotency key exists)",
-            )
 
     # Extract event type if present
     event_type = payload.get("event_type") or payload.get("type") or payload.get("event")
@@ -81,7 +65,6 @@ async def ingest_webhook(
         status=WebhookStatus.RECEIVED,
         received_at=datetime.now(timezone.utc),
         event_type=event_type,
-        idempotency_key=x_idempotency_key,
     )
 
     # Store in database

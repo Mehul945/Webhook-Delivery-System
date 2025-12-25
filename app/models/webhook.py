@@ -27,7 +27,6 @@ class WebhookEvent(BaseModel):
     status: WebhookStatus = WebhookStatus.RECEIVED
     received_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     event_type: Optional[str] = None
-    idempotency_key: Optional[str] = None
     delivery_attempts: list[DeliveryAttempt] = Field(default_factory=list)
     version: int = 1
     next_retry_at: Optional[datetime] = None

@@ -1,3 +1,7 @@
+"""
+Database connections for MongoDB and Redis.
+"""
+
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from redis.asyncio import Redis
 from typing import Optional
@@ -6,6 +10,8 @@ from app.config import get_settings
 
 
 class Database:
+    """Manages MongoDB and Redis connections."""
+
     client: Optional[AsyncIOMotorClient] = None
     db: Optional[AsyncIOMotorDatabase] = None
     redis: Optional[Redis] = None
@@ -23,7 +29,6 @@ class Database:
         await cls.db.webhooks.create_index("status")
         await cls.db.webhooks.create_index("received_at")
         await cls.db.webhooks.create_index("event_type")
-        await cls.db.webhooks.create_index("idempotency_key", unique=True, sparse=True)
         await cls.db.webhooks.create_index([("status", 1), ("next_retry_at", 1)])
 
         # Redis connection
